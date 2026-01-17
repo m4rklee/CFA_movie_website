@@ -693,62 +693,69 @@ html, body {
   margin: 0.5rem 0;
 }
 
-/* 响应式设计 */
-@media (max-width: 1024px) {
-  .header h1 {
-    font-size: 2rem;
-  }
-  
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  #moviesGrid,
-  #listMoviesGrid {
+/* 响应式设计 - 深度优化版 */
+@media (max-width: 1200px) {
+  #moviesGrid, #listMoviesGrid {
     grid-template-columns: repeat(5, 1fr);
   }
 }
 
+@media (max-width: 1024px) {
+  .header h1 { font-size: 2.2rem; }
+  .charts-grid { grid-template-columns: 1fr; }
+  #moviesGrid, #listMoviesGrid { grid-template-columns: repeat(4, 1fr); }
+}
+
 @media (max-width: 768px) {
-  .header {
-    padding: 2rem 1rem;
+  .header { padding: 2rem 1rem; }
+  .header h1 { font-size: 1.8rem; }
+  .tabs { 
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 0.5rem;
   }
+  .tab-btn { 
+    flex: 1 1 calc(33.33% - 1rem);
+    min-width: 100px;
+    padding: 0.8rem 0.5rem;
+    font-size: 0.85rem;
+  }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+  .movies-filters { padding: 1.5rem; gap: 1rem; }
+  #moviesGrid, #listMoviesGrid { grid-template-columns: repeat(3, 1fr); gap: 0.8rem; }
   
-  .header h1 {
-    font-size: 1.5rem;
-    letter-spacing: 2px;
+  .year-selector {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
   }
-  
-  .tabs {
-    padding: 0 1rem;
-  }
-  
-  .tab-panel {
-    padding: 1.5rem 1rem;
-  }
-  
-  .movies-filters {
-    grid-template-columns: 1fr;
-  }
-  
-  #moviesGrid,
-  #listMoviesGrid {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
+  .year-btn { flex: 0 0 auto; }
 }
 
 @media (max-width: 480px) {
-  .header h1 {
-    font-size: 1.25rem;
-  }
+  .header h1 { font-size: 1.4rem; }
+  .header p { font-size: 0.85rem; }
+  .stats-grid { grid-template-columns: 1fr; }
+  .tab-btn { flex: 1 1 100%; }
+  #moviesGrid, #listMoviesGrid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
   
-  #moviesGrid {
-    grid-template-columns: repeat(3, 1fr);
+  .movie-info { padding: 0.75rem; }
+  .movie-title { font-size: 0.9rem; }
+  .movie-meta { font-size: 0.75rem; }
+  .movie-tag { font-size: 0.65rem; padding: 0.2rem 0.4rem; }
+  
+  .pagination {
+    flex-wrap: wrap;
+    padding: 0.8rem;
+    gap: 0.4rem;
+  }
+  .pagination-btn {
+    padding: 0.5rem 0.7rem;
+    font-size: 0.8rem;
   }
 }
 

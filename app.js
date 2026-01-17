@@ -341,7 +341,9 @@ function renderPaginationButtons(container, current, total, onPageChange) {
     btn.textContent = text;
     btn.addEventListener('click', () => {
       onPageChange(target);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // 移动端滚动优化：滚动到列表顶部而非页面最顶部，体验更好
+      const scrollTarget = document.querySelector('.tabs') || document.body;
+      scrollTarget.scrollIntoView({ behavior: 'smooth' });
     });
     container.appendChild(btn);
   };
