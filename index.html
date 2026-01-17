@@ -26,107 +26,114 @@
         <button class="tab-btn" data-tab="moviesPanel">🎞️ 电影列表</button>
       </div>
 
-      <!-- 标签页内容 -->
-      <div class="tab-content">
-        <!-- 数据可视化面板 -->
-        <div id="dashboardPanel" class="tab-panel active">
-          <div class="dashboard">
-            <!-- 统计卡片 -->
-            <div class="stats-grid">
-              <div class="stat-card">
-                <div class="stat-value" id="statMovies">0</div>
-                <div class="stat-label">放映电影</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value" id="statCountries">0</div>
-                <div class="stat-label">制片国家</div>
-              </div>
-              <div class="stat-card">
-                <div class="stat-value" id="statGenres">0</div>
-                <div class="stat-label">电影类型</div>
-              </div>
-            </div>
+      <!-- 数据可视化面板 -->
+      <div id="dashboardPanel" class="tab-panel active">
+        <div class="dashboard-section">
+          <!-- 年份选择器 -->
+          <div style="margin-bottom: 2rem;">
+            <h3 style="font-family: var(--font-display); color: var(--color-accent); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">选择放映年份</h3>
+            <div class="year-selector" id="yearSelector"></div>
+          </div>
 
-            <!-- 年份选择器 -->
-            <div>
-              <h3 style="font-family: var(--font-display); color: var(--color-accent); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">选择放映年份</h3>
-              <div class="year-selector" id="yearSelector"></div>
+          <!-- 统计卡片 -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="statMovies">0</div>
+              <div class="stat-label">电影数量</div>
             </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statDirectors">0</div>
+              <div class="stat-label">导演数量</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statCountries">0</div>
+              <div class="stat-label">制片国家</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statGenres">0</div>
+              <div class="stat-label">电影类型</div>
+            </div>
+          </div>
 
-            <!-- 图表 -->
-            <div class="charts-grid">
-              <div class="chart-container">
-                <h3>📽️ 电影类型分布</h3>
-                <div id="genreChart"></div>
-              </div>
-              <div class="chart-container">
-                <h3>🌍 制片国家分布</h3>
-                <div id="countryChart"></div>
-              </div>
-              <div class="chart-container">
-                <h3>👤 导演排行</h3>
-                <div id="directorChart"></div>
-              </div>
+          <!-- 图表 -->
+          <div class="charts-grid">
+            <div class="chart-container">
+              <h3>📽️ 电影类型分布</h3>
+              <div id="genreChart"></div>
+            </div>
+            <div class="chart-container">
+              <h3>🌍 制片国家分布</h3>
+              <div id="countryChart"></div>
+            </div>
+            <div class="chart-container">
+              <h3>👤 导演排行</h3>
+              <div id="directorChart"></div>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- 豆列电影面板 -->
-        <div id="listMoviesPanel" class="tab-panel">
-          <div class="movies-section">
-            <!-- 豆列年份选择 -->
-            <div style="margin-bottom: 2rem;">
-              <h3 style="font-family: var(--font-display); color: var(--color-accent); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">选择豆列年份</h3>
-              <div class="year-selector" id="listYearSelector"></div>
-            </div>
-
-            <!-- 电影网格 -->
-            <div id="listMoviesGrid"></div>
-
-            <!-- 电影信息（翻页）-->
-            <div id="listMoviesInfo"></div>
+      <!-- 豆列电影面板 -->
+      <div id="listMoviesPanel" class="tab-panel">
+        <div class="movies-section">
+          <!-- 豆列年份选择 -->
+          <div style="margin-bottom: 2rem;">
+            <h3 style="font-family: var(--font-display); color: var(--color-accent); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">选择豆列年份</h3>
+            <div class="year-selector" id="listYearSelector"></div>
           </div>
+
+          <!-- 电影网格 -->
+          <div id="listMoviesGrid"></div>
+
+          <!-- 电影信息（翻页）-->
+          <div id="listMoviesInfo"></div>
         </div>
+      </div>
 
-        <!-- 电影列表面板 -->
-        <div id="moviesPanel" class="tab-panel">
-          <div class="movies-section">
-            <!-- 筛选器 -->
-            <div class="movies-filters">
-              <div class="filter-group">
-                <label for="searchInput">🔍 搜索</label>
-                <input type="text" id="searchInput" placeholder="电影名称、导演、演员...">
-              </div>
-              <div class="filter-group">
-                <label for="yearFilter">📅 上映年份</label>
-                <select id="yearFilter">
-                  <option value="">全部年份</option>
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="genreFilter">🎭 电影类型</label>
-                <select id="genreFilter">
-                  <option value="">全部类型</option>
-                </select>
-              </div>
-              <div class="filter-group">
-                <label for="sortFilter">⬆️ 排序方式</label>
-                <select id="sortFilter">
-                  <option value="rating-desc">评分 (高→低)</option>
-                  <option value="rating-asc">评分 (低→高)</option>
-                  <option value="title">标题 (A→Z)</option>
-                  <option value="year-desc">年份 (新→旧)</option>
-                  <option value="year-asc">年份 (旧→新)</option>
-                </select>
-              </div>
+      <!-- 电影列表面板 -->
+      <div id="moviesPanel" class="tab-panel">
+        <div class="movies-section">
+          <!-- 筛选器 -->
+          <div class="movies-filters">
+            <div class="filter-group">
+              <label for="searchInput">🔍 搜索</label>
+              <input type="text" id="searchInput" placeholder="电影名称、导演、演员...">
             </div>
-
-            <!-- 电影网格 -->
-            <div id="moviesGrid"></div>
-
-            <!-- 电影信息（翻页）-->
-            <div id="moviesInfo"></div>
+            <div class="filter-group">
+              <label for="yearFilter">📅 上映年份</label>
+              <select id="yearFilter">
+                <option value="">全部年份</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="genreFilter">🎭 电影类型</label>
+              <select id="genreFilter">
+                <option value="">全部类型</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="countryFilter">🌍 国家地区</label>
+              <select id="countryFilter">
+                <option value="">全部国家</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label for="sortFilter">⬆️ 排序方式</label>
+              <select id="sortFilter">
+                <option value="rating-desc">评分 (高→低)</option>
+                <option value="rating-asc">评分 (低→高)</option>
+                <option value="title">标题 (A→Z)</option>
+                <option value="year-desc">年份 (新→旧)</option>
+                <option value="year-asc">年份 (旧→新)</option>
+              </select>
+            </div>
           </div>
+
+          <!-- 电影网格 -->
+          <div id="moviesGrid"></div>
+
+          <!-- 电影信息（翻页）-->
+          <div id="moviesInfo"></div>
         </div>
       </div>
     </div>
