@@ -2,6 +2,7 @@
  * Cinema Archive Vault - 应用程序逻辑（高性能重构版）
  * 纯 JavaScript 实现
  * 功能：数据可视化、电影列表、搜索、筛选、排序、分页、豆列电影
+ * 修改日志：兼容 list_years 数组结构
  */
 
 // 全局状态
@@ -49,6 +50,22 @@ async function loadData() {
     console.error('数据加载失败:', error);
     return null;
   }
+}
+
+/**
+ * 辅助函数：检查电影是否属于特定年份（兼容 list_year 字符串和 list_years 数组）
+ */
+function isMovieInListYear(movie, year) {
+    const strYear = String(year);
+    // 情况1: 新数据结构，是数组且包含该年份
+    if (movie.list_years && Array.isArray(movie.list_years) && movie.list_years.includes(strYear)) {
+        return true;
+    }
+    // 情况2: 旧数据结构，是字符串且相等
+    if (movie.list_year && String(movie.list_year) === strYear) {
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -177,31 +194,82 @@ function switchTab(tabName) {
 }
 
 /**
- * 更新仪表板
+ * 更新仪表板 (已修复导演计数为0的问题)
+ */
+/**
+ * 更新仪表板 (完全重构：前端实时计算统计数据)
+ * 解决 JSON 预计算数据与 list_years 数组结构不匹配导致 undefined 的问题
  */
 function updateDashboard() {
-  const yearStats = appData.stats_by_year[currentYear];
-  if (!yearStats) return;
+  // 1. 实时筛选出当前年份（豆列年份）下的所有电影
+  const currentYearMovies = appData.unique_movies.filter(movie => 
+    isMovieInListYear(movie, currentYear)
+  );
 
-  // 计算该年份不重复的导演总数
-  const directors = new Set();
-  appData.unique_movies.forEach(movie => {
-    if (String(movie.list_year) === String(currentYear) && movie.director) {
-      // 处理多导演情况（通常以 / 分隔）
-      movie.director.split('/').forEach(d => directors.add(d.trim()));
-    }
-  });
+  // 如果没有数据，清空图表并返回
+  if (currentYearMovies.length === 0) {
+    document.getElementById('statMovies').textContent = 0;
+    document.getElementById('statCountries').textContent = 0;
+    document.getElementById('statGenres').textContent = 0;
+    document.getElementById('statDirectors').textContent = 0;
+    renderChart('genreChart', []);
+    renderChart('countryChart', []);
+    renderChart('directorChart', []);
+    return;
+  }
 
-  document.getElementById('statMovies').textContent = yearStats.total;
-  document.getElementById('statCountries').textContent = yearStats.top_countries.length;
-  document.getElementById('statGenres').textContent = yearStats.top_genres.length;
-  document.getElementById('statDirectors').textContent = directors.size;
+  // 2. 实时计算各项统计
+  const genreStats = calculateStats(currentYearMovies, 'genres_list', true); // genres_list 是数组
+  const countryStats = calculateStats(currentYearMovies, 'country', false);   // country 是字符串，需分割
+  const directorStats = calculateStats(currentYearMovies, 'director', false); // director 是字符串，需分割
+
+  // 3. 更新顶部数字卡片
+  document.getElementById('statMovies').textContent = currentYearMovies.length;
+  document.getElementById('statCountries').textContent = countryStats.length;
+  document.getElementById('statGenres').textContent = genreStats.length;
+  document.getElementById('statDirectors').textContent = directorStats.length;
   
-  renderChart('genreChart', yearStats.top_genres);
-  renderChart('countryChart', yearStats.top_countries);
-  renderChart('directorChart', yearStats.top_directors);
+  // 4. 更新图表 (取前10名)
+  renderChart('genreChart', genreStats.slice(0, 10));
+  renderChart('countryChart', countryStats.slice(0, 10));
+  renderChart('directorChart', directorStats.slice(0, 10));
 }
 
+/**
+ * 辅助函数：统计分布情况
+ * @param {Array} movies - 电影列表
+ * @param {String} field - 要统计的字段名
+ * @param {Boolean} isArrayField - 字段是否已经是数组 (如 genres_list)
+ */
+function calculateStats(movies, field, isArrayField) {
+  const counts = {};
+
+  movies.forEach(movie => {
+    let items = [];
+    const value = movie[field];
+
+    if (!value) return;
+
+    if (isArrayField) {
+      // 如果已经是数组 (例如 genres_list)
+      items = value;
+    } else {
+      // 如果是字符串 (例如 "美国 / 英国")，需要分割
+      items = String(value).split('/').map(s => s.trim());
+    }
+
+    items.forEach(item => {
+      if (item) {
+        counts[item] = (counts[item] || 0) + 1;
+      }
+    });
+  });
+
+  // 转换为数组并按数量降序排序
+  return Object.keys(counts)
+    .map(name => ({ name: name, count: counts[name] }))
+    .sort((a, b) => b.count - a.count);
+}
 /**
  * 渲染图表
  */
@@ -277,10 +345,12 @@ function updateMoviesListAsync() {
 }
 
 /**
- * 异步更新豆列电影列表
+ * 异步更新豆列电影列表 (已兼容 list_years 数组)
  */
 function updateListMoviesAsync() {
-  listMovies = appData.unique_movies.filter(movie => String(movie.list_year) === String(currentListYear));
+  // 使用辅助函数进行筛选
+  listMovies = appData.unique_movies.filter(movie => isMovieInListYear(movie, currentListYear));
+  
   listMovies = sortMovies(listMovies, 'rating-desc');
   renderGenericMoviesList('listMoviesGrid', 'listMoviesInfo', listMovies, currentListPage, (p) => {
     currentListPage = p;
@@ -388,10 +458,13 @@ function renderPaginationButtons(container, current, total, onPageChange) {
 function createMovieCard(movie) {
   const card = document.createElement('div');
   card.className = 'movie-card';
-  
-  const movieIdMatch = movie.url.match(/\/subject\/(\d+)\//);
-  const movieId = movieIdMatch ? movieIdMatch[1] : null;
-  const posterPath = movieId ? `images/posters/${movieId}.webp` : null;
+  const picUrl = movie.image_url;
+  const picIdMatch = picUrl.match(/p(\d+)/);
+  const picId = picIdMatch ? picIdMatch[1] : null;
+  // const movieIdMatch = movie.url.match(/\/subject\/(\d+)\//);
+  // const movieId = movieIdMatch ? movieIdMatch[1] : null;
+
+  const posterPath = picId ? `images/posters/${picId}.webp` : null;
   
   const rating = parseFloat(movie.rating === '暂无评分' ? '0' : movie.rating);
   const stars = Math.round(rating / 2);
