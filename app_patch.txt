@@ -1,0 +1,9 @@
+  // 更新页头信息
+  const years = Object.keys(appData.stats_by_year).sort((a, b) => parseInt(b) - parseInt(a));
+  const yearsDisplay = years.join('、');
+  document.getElementById('headerDesc').textContent = 
+    `收录 ${appData.unique_movies.length} 部电影，涵盖年份：${yearsDisplay}`;
+  
+  // 更新页脚信息
+  document.getElementById('footerInfo').textContent = 
+    `数据: ${appData.unique_movies.length} 部电影 | 豆列年份：${yearsDisplay}`;

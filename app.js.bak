@@ -1,0 +1,565 @@
+/**
+ * Cinema Archive Vault - 应用程序逻辑（高性能版）
+ * 纯 JavaScript 实现
+ * 功能：数据可视化、电影列表、搜索、筛选、排序、分页
+ * 优化：异步处理、防抖、分批渲染
+ */
+
+// 全局状态
+let appData = null;
+let filteredMovies = [];
+let currentYear = null;
+let currentPage = 1;
+const MOVIES_PER_PAGE = 30;
+let searchTimeout = null;
+let isProcessing = false;
+
+// 初始化应用
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    // 加载数据
+    appData = await loadData();
+    
+    if (!appData) {
+      showError('无法加载数据');
+      return;
+    }
+
+    // 初始化 UI
+    initializeUI();
+    
+    // 设置事件监听
+    setupEventListeners();
+    
+    // 显示初始数据
+    updateDashboard();
+    
+    // 异步更新电影列表
+    updateMoviesListAsync();
+  } catch (error) {
+    console.error('初始化失败:', error);
+    showError('应用初始化失败');
+  }
+});
+
+/**
+ * 加载数据
+ */
+async function loadData() {
+  try {
+    // 添加时间戳参数以清除缓存
+    const timestamp = new Date().getTime();
+    const response = await fetch(`processed_movies.json?t=${timestamp}`);
+    if (!response.ok) {
+      throw new Error('Failed to load data');
+    }
+    const data = await response.json();
+    console.log('数据加载成功:', data);
+    return data;
+  } catch (error) {
+    console.error('数据加载失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 初始化 UI
+ */
+function initializeUI() {
+  // 更新页头信息
+  const years = Object.keys(appData.stats_by_year).sort((a, b) => parseInt(b) - parseInt(a));
+  document.getElementById('headerDesc').textContent = 
+    `收录 ${appData.unique_movies.length} 部电影，涵盖 ${years.length} 个放映年份`;
+  
+  // 更新页脚信息
+  document.getElementById('footerInfo').textContent = 
+    `数据: ${appData.unique_movies.length} 部电影 | ${years.length} 个放映年份`;
+
+  // 设置初始年份（必须在生成选择器之前）
+  currentYear = years[0];
+
+  // 生成年份选择器
+  generateYearSelector(years);
+  
+  // 生成电影年份筛选选项
+  generateYearFilterOptions();
+  
+  // 生成电影类型筛选选项
+  generateGenreFilterOptions();
+}
+
+/**
+ * 生成年份选择器按钮
+ */
+function generateYearSelector(years) {
+  const selector = document.getElementById('yearSelector');
+  selector.innerHTML = '';
+  
+  years.forEach(year => {
+    const btn = document.createElement('button');
+    btn.className = `year-btn ${String(year) === String(currentYear) ? 'active' : ''}`;
+    btn.textContent = `${year}年`;
+    btn.dataset.year = year;
+    btn.addEventListener('click', () => selectYear(year));
+    selector.appendChild(btn);
+  });
+}
+
+/**
+ * 选择年份
+ */
+function selectYear(year) {
+  currentYear = year;
+  
+  // 更新按钮状态
+  document.querySelectorAll('.year-btn').forEach(btn => {
+    btn.classList.toggle('active', String(btn.dataset.year) === String(year));
+  });
+  
+  // 更新仪表板
+  updateDashboard();
+}
+
+/**
+ * 生成电影年份筛选选项
+ */
+function generateYearFilterOptions() {
+  const select = document.getElementById('yearFilter');
+  const years = new Set();
+  
+  appData.unique_movies.forEach(movie => {
+    if (movie.movie_year) {
+      years.add(movie.movie_year);
+    }
+  });
+  
+  const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  
+  sortedYears.forEach(year => {
+    const option = document.createElement('option');
+    option.value = year;
+    option.textContent = year;
+    select.appendChild(option);
+  });
+}
+
+/**
+ * 生成电影类型筛选选项
+ */
+function generateGenreFilterOptions() {
+  const select = document.getElementById('genreFilter');
+  
+  appData.global_stats.all_genres.forEach(genre => {
+    const option = document.createElement('option');
+    option.value = genre;
+    option.textContent = genre;
+    select.appendChild(option);
+  });
+}
+
+/**
+ * 设置事件监听
+ */
+function setupEventListeners() {
+  // 标签页切换
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tabName = btn.dataset.tab;
+      switchTab(tabName);
+    });
+  });
+
+  // 搜索（使用防抖）
+  document.getElementById('searchInput').addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      currentPage = 1;
+      updateMoviesListAsync();
+    }, 300);
+  });
+  
+  // 筛选
+  document.getElementById('yearFilter').addEventListener('change', () => {
+    currentPage = 1;
+    updateMoviesListAsync();
+  });
+  document.getElementById('genreFilter').addEventListener('change', () => {
+    currentPage = 1;
+    updateMoviesListAsync();
+  });
+  document.getElementById('sortFilter').addEventListener('change', () => {
+    currentPage = 1;
+    updateMoviesListAsync();
+  });
+}
+
+/**
+ * 切换标签页
+ */
+function switchTab(tabName) {
+  // 隐藏所有面板
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.remove('active');
+  });
+  
+  // 移除所有按钮的活跃状态
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // 显示选中的面板
+  document.getElementById(tabName).classList.add('active');
+  
+  // 激活选中的按钮
+  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+}
+
+/**
+ * 更新仪表板
+ */
+function updateDashboard() {
+  if (!currentYear || !appData.stats_by_year[currentYear]) {
+    return;
+  }
+
+  const yearStats = appData.stats_by_year[currentYear];
+  
+  // 更新统计卡片
+  document.getElementById('statMovies').textContent = yearStats.total;
+  document.getElementById('statCountries').textContent = yearStats.top_countries.length;
+  document.getElementById('statGenres').textContent = yearStats.top_genres.length;
+  
+  // 更新图表
+  renderChart('genreChart', yearStats.top_genres);
+  renderChart('countryChart', yearStats.top_countries);
+  renderChart('directorChart', yearStats.top_directors);
+}
+
+/**
+ * 渲染图表（支持多种类型和颜色）
+ */
+function renderChart(containerId, data, chartType = 'bar') {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  
+  if (!data || data.length === 0) {
+    container.innerHTML = '<p style="color: var(--color-text-muted);">暂无数据</p>';
+    return;
+  }
+
+  // 限制显示数量
+  const displayData = data.slice(0, 10);
+  const maxValue = Math.max(...displayData.map(item => item.count));
+  
+  // 根据图表类型选择不同的颜色
+  const colors = [
+    'linear-gradient(90deg, #6366f1 0%, #818cf8 100%)',
+    'linear-gradient(90deg, #ec4899 0%, #f472b6 100%)',
+    'linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%)',
+    'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)',
+    'linear-gradient(90deg, #10b981 0%, #34d399 100%)',
+    'linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%)',
+    'linear-gradient(90deg, #ef4444 0%, #f87171 100%)',
+    'linear-gradient(90deg, #06b6d4 0%, #22d3ee 100%)',
+    'linear-gradient(90deg, #d946ef 0%, #e879f9 100%)',
+    'linear-gradient(90deg, #fbbf24 0%, #fcd34d 100%)',
+  ];
+  
+  displayData.forEach((item, index) => {
+    const percentage = (item.count / maxValue) * 100;
+    const color = colors[index % colors.length];
+    
+    const itemEl = document.createElement('div');
+    itemEl.className = 'chart-item';
+    itemEl.innerHTML = `
+      <div class="chart-label" title="${item.name}">${item.name}</div>
+      <div class="chart-bar-container">
+        <div class="chart-bar" style="background: ${color}; width: ${percentage}%"></div>
+      </div>
+      <div class="chart-value">${item.count}</div>
+    `;
+    
+    container.appendChild(itemEl);
+  });
+}
+
+/**
+ * 异步更新电影列表
+ */
+function updateMoviesListAsync() {
+  if (isProcessing) return;
+  isProcessing = true;
+  
+  // 获取筛选条件
+  const searchText = document.getElementById('searchInput').value.toLowerCase();
+  const yearFilter = document.getElementById('yearFilter').value;
+  const genreFilter = document.getElementById('genreFilter').value;
+  const sortBy = document.getElementById('sortFilter').value;
+
+  // 使用 setTimeout 让出主线程
+  setTimeout(() => {
+    try {
+      // 过滤电影
+      filteredMovies = appData.unique_movies.filter(movie => {
+        // 搜索过滤
+        if (searchText) {
+          const matchesSearch = 
+            movie.title.toLowerCase().includes(searchText) ||
+            (movie.director && movie.director.toLowerCase().includes(searchText)) ||
+            (movie.actors && movie.actors.toLowerCase().includes(searchText));
+          
+          if (!matchesSearch) return false;
+        }
+
+        // 年份过滤
+        if (yearFilter && movie.movie_year !== yearFilter) {
+          return false;
+        }
+
+        // 类型过滤
+        if (genreFilter && !movie.genres_list.includes(genreFilter)) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // 排序
+      filteredMovies = sortMovies(filteredMovies, sortBy);
+
+      // 渲染列表
+      renderMoviesList();
+    } finally {
+      isProcessing = false;
+    }
+  }, 0);
+}
+
+/**
+ * 排序电影
+ */
+function sortMovies(movies, sortBy) {
+  const sorted = [...movies];
+  
+  switch (sortBy) {
+    case 'rating-desc':
+      sorted.sort((a, b) => {
+        const ratingA = parseFloat(a.rating === '暂无评分' ? '0' : a.rating);
+        const ratingB = parseFloat(b.rating === '暂无评分' ? '0' : b.rating);
+        return ratingB - ratingA;
+      });
+      break;
+    case 'rating-asc':
+      sorted.sort((a, b) => {
+        const ratingA = parseFloat(a.rating === '暂无评分' ? '0' : a.rating);
+        const ratingB = parseFloat(b.rating === '暂无评分' ? '0' : b.rating);
+        return ratingA - ratingB;
+      });
+      break;
+    case 'title':
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case 'year-desc':
+      sorted.sort((a, b) => parseInt(b.movie_year || '0') - parseInt(a.movie_year || '0'));
+      break;
+    case 'year-asc':
+      sorted.sort((a, b) => parseInt(a.movie_year || '0') - parseInt(b.movie_year || '0'));
+      break;
+  }
+  
+  return sorted;
+}
+
+/**
+ * 渲染电影列表（带分页）
+ */
+function renderMoviesList() {
+  const grid = document.getElementById('moviesGrid');
+  const info = document.getElementById('moviesInfo');
+  
+  // 计算分页
+  const totalPages = Math.ceil(filteredMovies.length / MOVIES_PER_PAGE);
+  const startIdx = (currentPage - 1) * MOVIES_PER_PAGE;
+  const endIdx = startIdx + MOVIES_PER_PAGE;
+  const pageMovies = filteredMovies.slice(startIdx, endIdx);
+  
+  // 更新信息文本
+  info.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <span>找到 ${filteredMovies.length} 部电影，第 ${currentPage}/${totalPages} 页</span>
+      <div id="pagination" class="pagination"></div>
+    </div>
+  `;
+  
+  // 清空网格
+  grid.innerHTML = '';
+  
+  if (filteredMovies.length === 0) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">没有找到匹配的电影</div>';
+    return;
+  }
+
+  // 渲染电影卡片
+  pageMovies.forEach(movie => {
+    const card = createMovieCard(movie);
+    grid.appendChild(card);
+  });
+  
+  // 渲染分页控件
+  renderPagination(totalPages);
+}
+
+/**
+ * 渲染分页控件
+ */
+function renderPagination(totalPages) {
+  const paginationContainer = document.getElementById('pagination');
+  paginationContainer.innerHTML = '';
+  
+  if (totalPages <= 1) return;
+  
+  // 上一页按钮
+  if (currentPage > 1) {
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'pagination-btn';
+    prevBtn.textContent = '← 上一页';
+    prevBtn.addEventListener('click', () => {
+      currentPage--;
+      renderMoviesList();
+      window.scrollTo(0, 0);
+    });
+    paginationContainer.appendChild(prevBtn);
+  }
+  
+  // 页码按钮
+  const maxPagesToShow = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+  let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+  
+  if (endPage - startPage < maxPagesToShow - 1) {
+    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+  }
+  
+  if (startPage > 1) {
+    const firstBtn = document.createElement('button');
+    firstBtn.className = 'pagination-btn';
+    firstBtn.textContent = '1';
+    firstBtn.addEventListener('click', () => {
+      currentPage = 1;
+      renderMoviesList();
+      window.scrollTo(0, 0);
+    });
+    paginationContainer.appendChild(firstBtn);
+    
+    if (startPage > 2) {
+      const dots = document.createElement('span');
+      dots.className = 'pagination-dots';
+      dots.textContent = '...';
+      paginationContainer.appendChild(dots);
+    }
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    const btn = document.createElement('button');
+    btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
+    btn.textContent = i;
+    btn.addEventListener('click', () => {
+      currentPage = i;
+      renderMoviesList();
+      window.scrollTo(0, 0);
+    });
+    paginationContainer.appendChild(btn);
+  }
+  
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const dots = document.createElement('span');
+      dots.className = 'pagination-dots';
+      dots.textContent = '...';
+      paginationContainer.appendChild(dots);
+    }
+    
+    const lastBtn = document.createElement('button');
+    lastBtn.className = 'pagination-btn';
+    lastBtn.textContent = totalPages;
+    lastBtn.addEventListener('click', () => {
+      currentPage = totalPages;
+      renderMoviesList();
+      window.scrollTo(0, 0);
+    });
+    paginationContainer.appendChild(lastBtn);
+  }
+  
+  // 下一页按钮
+  if (currentPage < totalPages) {
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'pagination-btn';
+    nextBtn.textContent = '下一页 →';
+    nextBtn.addEventListener('click', () => {
+      currentPage++;
+      renderMoviesList();
+      window.scrollTo(0, 0);
+    });
+    paginationContainer.appendChild(nextBtn);
+  }
+}
+
+/**
+ * 创建电影卡片
+ */
+function createMovieCard(movie) {
+  const card = document.createElement('div');
+  card.className = 'movie-card';
+  
+  // 从豆瓣 URL 中提取电影 ID
+  const movieIdMatch = movie.url.match(/\/subject\/(\d+)\//);
+  const movieId = movieIdMatch ? movieIdMatch[1] : null;
+  const posterPath = movieId ? `images/posters/${movieId}.webp` : null;
+  
+  // 生成星级
+  const rating = parseFloat(movie.rating === '暂无评分' ? '0' : movie.rating);
+  const stars = Math.round(rating / 2);
+  let starsHtml = '';
+  for (let i = 0; i < 5; i++) {
+    starsHtml += `<span class="star ${i < stars ? '' : 'empty'}">★</span>`;
+  }
+  
+  card.innerHTML = `
+    <div class="movie-poster">
+      ${posterPath ? `<img src="${posterPath}" alt="${movie.title}" loading="lazy">` : ''}
+      <div class="movie-poster-placeholder" ${posterPath ? 'style="display: none;"' : ''}>
+        无海报
+      </div>
+      <div class="movie-overlay">
+        <a href="${movie.url}" target="_blank" rel="noopener noreferrer" title="在豆瓣查看">🔗</a>
+      </div>
+    </div>
+    <div class="movie-info">
+      <h3 class="movie-title">${movie.title}</h3>
+      <div class="movie-rating">
+        <div class="movie-stars">${starsHtml}</div>
+        <span class="movie-score">${movie.rating}</span>
+      </div>
+      <div class="movie-meta">
+        <strong>${movie.country}</strong> · ${movie.movie_year}
+      </div>
+      <div class="movie-tags">
+        ${movie.genres_list.map(genre => `<span class="movie-tag">${genre}</span>`).join('')}
+      </div>
+    </div>
+  `;
+  
+  return card;
+}
+
+/**
+ * 显示错误信息
+ */
+function showError(message) {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; color: var(--color-error); font-size: 1.2rem;">
+      ${message}
+    </div>
+  `;
+}
