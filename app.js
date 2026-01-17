@@ -350,8 +350,12 @@ function renderPaginationButtons(container, current, total, onPageChange) {
 
   if (current > 1) addBtn('← 上一页', current - 1);
   
-  const start = Math.max(1, current - 2);
-  const end = Math.min(total, current + 2);
+  // 移动端适配：如果屏幕较窄，显示更少的页码
+  const isMobile = window.innerWidth <= 480;
+  const delta = isMobile ? 1 : 2;
+  
+  const start = Math.max(1, current - delta);
+  const end = Math.min(total, current + delta);
   
   if (start > 1) {
     addBtn('1', 1);
