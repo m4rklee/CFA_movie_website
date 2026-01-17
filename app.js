@@ -453,6 +453,63 @@ function renderPaginationButtons(container, current, total, onPageChange) {
 }
 
 /**
+ * 电影名称清洗
+ */
+function cleanMovieTitle(text) {
+  if (!text) return "";
+
+  text = text.trim();
+
+  // 1. 强力切割：双空格及以上
+  // JS 的 split 支持正则
+  const parts = text.split(/\s{2,}/);
+  if (parts.length > 1) {
+    return parts[0].trim();
+  }
+
+  // 2. 异种语言截断 (针对：福音战士、霸王别姬、悲惨世界)
+  // 排除法：匹配 [空格] + [非中文、非数字、非中文标点的第一个字符]
+  // JS 中 match[1] 对应 Python 的 group(1)
+  const foreignRegex = /^(.*?)\s+([^0-9\u4e00-\u9fa5\uff01-\uff1f\u3001-\u3011])/;
+  const foreignMatch = text.match(foreignRegex);
+  if (foreignMatch) {
+    return foreignMatch[1].trim();
+  }
+
+  // 3. 对称性与重复识别 (针对：三生三世、卧虎藏龙)
+  if (text.includes(' ')) {
+    // 寻找所有空格的位置
+    const spaces = [];
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === ' ') spaces.push(i);
+    }
+
+    if (spaces.length > 0) {
+      const mid = Math.floor(text.length / 2);
+      // 找到最靠近中间的那个空格
+      const centerSpaceIdx = spaces.reduce((prev, curr) => 
+        Math.abs(curr - mid) < Math.abs(prev - mid) ? curr : prev
+      );
+
+      const p1 = text.substring(0, centerSpaceIdx).trim();
+      const p2 = text.substring(centerSpaceIdx).trim();
+
+      // 判定：长度相等 (简繁对照通常等长)
+      if (p1.length === p2.length && p1.length > 1) {
+        return p1;
+      }
+
+      // 判定：首字相同 (完全重复或部分重复)
+      if (p1.length > 0 && p2.length > 0 && p1[0] === p2[0]) {
+        return p1;
+      }
+    }
+  }
+
+  return text;
+}
+
+/**
  * 创建电影卡片
  */
 function createMovieCard(movie) {
@@ -470,7 +527,7 @@ function createMovieCard(movie) {
   const stars = Math.round(rating / 2);
   let starsHtml = '';
   for (let i = 0; i < 5; i++) starsHtml += `<span class="star ${i < stars ? '' : 'empty'}">★</span>`;
-  
+  movie.title = cleanMovieTitle(movie.title)
   card.innerHTML = `
     <div class="movie-poster">
       ${posterPath ? `<img src="${posterPath}" alt="${movie.title}" loading="lazy" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : ''}
